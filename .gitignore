@@ -1,0 +1,5 @@
+build_tool/build_tool.go
+build_tool/dist/linux/qr_generator
+build_tool/dist/darwin/qr_generator
+build_tool/dist/windows/qr_generator.exe
+build_tool/*
