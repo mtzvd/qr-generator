@@ -5,7 +5,7 @@ This program generates QR codes from URLs and saves them as PNG or SVG files.
 
 ## Installation
 
-To install and run this program, you'll need to have Go installed on your machine. 
+To install and run this program, you'll need to have Go installed on your machine.
 
 1. Clone the repository to your local machine:
 
