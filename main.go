@@ -14,20 +14,34 @@ import (
 
 // Constants
 const (
-	maxURLLength = 2048
-	minQRSize    = 100
-	maxQRSize    = 4096
-	unitSize     = 6
+	errCodeGeneralFailure        = 1
+	errCodeCommandLineUsageError = 2
+	maxURLLength                 = 2048
+	minQRSize                    = 100
+	maxQRSize                    = 4096
+	unitSize                     = 6
 )
+
+// List of supported output file formats
+var supportedFormats = map[string]bool{
+	"png": true,
+	"svg": true,
+}
 
 // Store regular expression for reuse
 var filenameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 
-// Helper function to check and handle errors
-func checkError(err error) {
+// sValidFormat Helper function which checks wether specified format is in supported formats.
+func isValidFormat(format string) bool {
+	_, ok := supportedFormats[format]
+	return ok
+}
+
+// exitOnError Helper function to check and exit on errors
+func exitOnError(err error) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		os.Exit(errCodeGeneralFailure)
 	}
 }
 
@@ -69,12 +83,14 @@ func sanitizeFilename(input string) string {
 }
 
 func main() {
+
 	// Parse command string flags
 	urlFlag := flag.String("u", "", "URL to generate QR code for (max URL length 2048)")
 	levelFlag := flag.String("l", "M", "Correction level (L, M, Q, H)")
 	formatFlag := flag.String("f", "png", "Output format (png, svg)")
 	sizeFlag := flag.Int("s", 256, "Size of the QR code (default 256, min 100, max 4096)")
 	dirFlag := flag.String("d", ".", "Directory to save the file (default is current directory)")
+	fileFlag := flag.String("o", "", "Filename to save QR code to")
 	dispFlag := flag.Bool("nodisplay", false, "Set this flag to skip QR code output to console")
 	flag.Parse()
 
@@ -82,22 +98,26 @@ func main() {
 	flag.Usage = customUsage
 	if flag.NFlag() == 0 {
 		flag.Usage()
-		return
+		os.Exit(errCodeCommandLineUsageError)
 	}
 
 	// Check URL length
-	if len(*urlFlag) == 0 || len(*urlFlag) > maxURLLength {
-		fmt.Printf("Error: URL is required and must be less than %d characters.\n", maxURLLength)
-		return
+	if len(*urlFlag) == 0 {
+		fmt.Printf("Error: URL is required. Please use -u <URL>\n")
+		os.Exit(errCodeCommandLineUsageError)
+	}
+	if len(*urlFlag) > maxURLLength {
+		fmt.Printf("Error: URL must be less than %d characters.\n", maxURLLength)
+		os.Exit(errCodeCommandLineUsageError)
 	}
 
 	// Check QR size
 	if *sizeFlag < minQRSize || *sizeFlag > maxQRSize {
-		fmt.Printf("Error: Size of the QR code must be between %d and %d.\n", minQRSize, maxQRSize)
-		return
+		fmt.Fprintf(os.Stderr, "Error: Size of the QR code must be between %d and %d.\n", minQRSize, maxQRSize)
+		os.Exit(errCodeCommandLineUsageError)
 	}
 
-	// Connect stadard correction levels to constants
+	// Connect stadard correction levels to constants and check them
 	var level qrcode.RecoveryLevel
 	switch *levelFlag {
 	case "L":
@@ -109,13 +129,19 @@ func main() {
 	case "H":
 		level = qrcode.Highest
 	default:
-		fmt.Println("Invalid correction level. Choose from L, M, Q, H.")
-		return
+		fmt.Fprintf(os.Stderr, "Invalid correction level. Choose from L, M, Q, H.\n")
+		os.Exit(errCodeCommandLineUsageError)
+	}
+
+	// Check specified file format
+	if !isValidFormat(*formatFlag) {
+		fmt.Fprintf(os.Stderr, "Error: Unsupported file format '%s'. Only png and svg are supported.\n", *formatFlag)
+		os.Exit(errCodeCommandLineUsageError)
 	}
 
 	//Generate QRcode
 	qr, err := qrcode.New(*urlFlag, level)
-	checkError(err)
+	exitOnError(err)
 
 	// Print QRcode to console if --nodisplay flag is not set
 	if !*dispFlag {
@@ -124,23 +150,32 @@ func main() {
 
 	// Prepare filename
 	dir, err := filepath.Abs(*dirFlag)
-	checkError(err)
+	exitOnError(err)
+
 	currentTime := time.Now().Format("20060102150405")
-	filename := fmt.Sprintf("qrcode%s%s.%s", currentTime, sanitizeFilename(*urlFlag), *formatFlag)
-	filePath := filepath.Join(dir, filename)
+
+	var outputFilename string
+
+	if len(*fileFlag) == 0 {
+		outputFilename = fmt.Sprintf("qrcode%s%s.%s", currentTime, sanitizeFilename(*urlFlag), *formatFlag)
+	} else {
+		outputFilename = sanitizeFilename(*fileFlag)
+	}
+
+	outputPath := filepath.Join(dir, outputFilename)
 
 	// Save file in selected format
 	switch *formatFlag {
 	case "png":
-		err = qr.WriteFile(*sizeFlag, filePath)
+		err = qr.WriteFile(*sizeFlag, outputPath)
 	case "svg":
 		svgStr := generateSVG(qr)
-		err = os.WriteFile(filePath, []byte(svgStr), 0644)
+		err = os.WriteFile(outputPath, []byte(svgStr), 0644)
 	default:
-		fmt.Println("Invalid format. Choose from png or svg.")
-		return
+		fmt.Fprintf(os.Stderr, "Invalid format. Choose from png or svg.\n")
+		os.Exit(errCodeCommandLineUsageError)
 	}
-	checkError(err)
+	exitOnError(err)
 
-	fmt.Println("QR code saved as:", filePath)
+	fmt.Println("QR code saved as:", outputPath)
 }

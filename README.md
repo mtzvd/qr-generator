@@ -36,6 +36,7 @@ To generate a QR code, you can use the following flags:
 - `-f`: Output format (options: png, svg; default "png")
 - `-s`: Size of the QR code (default 256, min 100, max 4096)
 - `-d`: Directory to save the file (default is current directory)
+- `-o`: Filename to save QR code to
 - `-nodisplay`: Skip QR output to console
 
 ### Examples
