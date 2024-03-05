@@ -75,6 +75,7 @@ func main() {
 	formatFlag := flag.String("f", "png", "Output format (png, svg)")
 	sizeFlag := flag.Int("s", 256, "Size of the QR code (default 256, min 100, max 4096)")
 	dirFlag := flag.String("d", ".", "Directory to save the file (default is current directory)")
+	dispFlag := flag.Bool("nodisplay", false, "Set this flag to skip QR code output to console")
 	flag.Parse()
 
 	// Display defaults if no flags provided
@@ -116,8 +117,10 @@ func main() {
 	qr, err := qrcode.New(*urlFlag, level)
 	checkError(err)
 
-	// Print QRcode to console
-	fmt.Println(qr.ToSmallString(false))
+	// Print QRcode to console if --nodisplay flag is not set
+	if !*dispFlag {
+		fmt.Println(qr.ToSmallString(false))
+	}
 
 	// Prepare filename
 	dir, err := filepath.Abs(*dirFlag)
